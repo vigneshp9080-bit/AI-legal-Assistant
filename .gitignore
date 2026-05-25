@@ -1,0 +1,23 @@
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Frontend dependencies and builds
+node_modules/
+dist/
+
+# Local database, logs and vector index data
+*.db
+faiss_index/
+temp_uploads/
+
+# Secrets and environment variables
+.env
