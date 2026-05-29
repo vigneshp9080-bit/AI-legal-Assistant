@@ -88,12 +88,12 @@ def build_rag_index():
         )
 
     try:
-        total_chunks = rag_service.build_index_from_csv()
+        rag_service.initialize()
         return {
-            "status": "success",
-            "message": f"Successfully parsed and indexed {total_chunks} chunks into FAISS vector database.",
-            "index_path": settings.FAISS_INDEX_PATH
-        }
+    "status": "success",
+    "message": "FAISS index loaded successfully.",
+    "index_path": settings.FAISS_INDEX_PATH
+}
     except FileNotFoundError as fnf:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
