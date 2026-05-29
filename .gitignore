@@ -16,7 +16,6 @@ dist/
 
 # Local database, logs and vector index data
 *.db
-faiss_index/
 temp_uploads/
 
 # Secrets and environment variables
