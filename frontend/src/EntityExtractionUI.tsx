@@ -139,6 +139,7 @@ export const EntityExtractionUI: React.FC = () => {
   // Upload/Processing states
   const [loading, setLoading] = useState<boolean>(false);
   const [uploadStatus, setUploadStatus] = useState<string>('');
+  const [uploadedFilename, setUploadedFilename] = useState<string>('');
   const [selectedEntity, setSelectedEntity] = useState<EntityItem | null>(null);
 
   // SVG Node Coordinates for Knowledge Graph
@@ -148,13 +149,13 @@ export const EntityExtractionUI: React.FC = () => {
   // Category Color Map
   const entityColors: Record<string, { bg: string; border: string; text: string; badge: string; colorHex: string }> = {
     judges: { bg: 'rgba(239, 68, 68, 0.08)', border: 'border-red-500/20', text: 'text-red-400', badge: 'bg-red-500/10 text-red-300', colorHex: '#EF4444' },
-    lawyers: { bg: 'rgba(59, 130, 246, 0.08)', border: 'border-blue-500/20', text: 'text-blue-400', badge: 'bg-blue-500/10 text-blue-300', colorHex: '#3B82F6' },
+    lawyers: { bg: 'rgba(59, 130, 246, 0.08)', border: 'border-blue-500/20', text: 'text-indigo-600', badge: 'bg-blue-500/10 text-indigo-400', colorHex: '#3B82F6' },
     ipc_sections: { bg: 'rgba(245, 158, 11, 0.08)', border: 'border-amber-500/20', text: 'text-amber-400', badge: 'bg-amber-500/10 text-amber-300', colorHex: '#F59E0B' },
     courts: { bg: 'rgba(168, 85, 247, 0.08)', border: 'border-purple-500/20', text: 'text-purple-400', badge: 'bg-purple-500/10 text-purple-300', colorHex: '#A855F7' },
-    companies: { bg: 'rgba(16, 185, 129, 0.08)', border: 'border-emerald-500/20', text: 'text-emerald-400', badge: 'bg-emerald-500/10 text-emerald-300', colorHex: '#10B981' },
+    companies: { bg: 'rgba(16, 185, 129, 0.08)', border: 'border-emerald-500/20', text: 'text-emerald-400', badge: 'bg-emerald-500/10 text-emerald-400', colorHex: '#10B981' },
     fir_numbers: { bg: 'rgba(236, 72, 153, 0.08)', border: 'border-pink-500/20', text: 'text-pink-400', badge: 'bg-pink-500/10 text-pink-300', colorHex: '#EC4899' },
     case_numbers: { bg: 'rgba(6, 182, 212, 0.08)', border: 'border-cyan-500/20', text: 'text-cyan-400', badge: 'bg-cyan-500/10 text-cyan-300', colorHex: '#06B6D4' },
-    organizations: { bg: 'rgba(107, 114, 128, 0.08)', border: 'border-gray-500/20', text: 'text-gray-400', badge: 'bg-gray-500/10 text-gray-300', colorHex: '#6B7280' },
+    organizations: { bg: 'rgba(107, 114, 128, 0.08)', border: 'border-gray-500/20', text: 'text-slate-500', badge: 'bg-gray-500/10 text-slate-300', colorHex: '#6B7280' },
     persons: { bg: 'rgba(99, 102, 241, 0.08)', border: 'border-indigo-500/20', text: 'text-indigo-400', badge: 'bg-indigo-500/10 text-indigo-300', colorHex: '#6366F1' },
     locations: { bg: 'rgba(20, 184, 166, 0.08)', border: 'border-teal-500/20', text: 'text-teal-400', badge: 'bg-teal-500/10 text-teal-300', colorHex: '#14B8A6' },
     dates: { bg: 'rgba(14, 165, 233, 0.08)', border: 'border-sky-500/20', text: 'text-sky-400', badge: 'bg-sky-500/10 text-sky-300', colorHex: '#0EA5E9' }
@@ -227,12 +228,14 @@ export const EntityExtractionUI: React.FC = () => {
       }
 
       const data = await res.json();
-      setDocumentText(data.entities.raw_entities.map((e: any) => e.context_text).join("\n") || "No raw text recovered.");
+      const extractedText = data.entities.raw_entities.map((e: any) => e.context_text).join("\n").trim();
+      setDocumentText(extractedText || "No raw text recovered.");
       setExtractedData(data.entities);
-      setUploadStatus("Success: Case file analyzed.");
+      setUploadedFilename(file.name);
+      setUploadStatus(`Success: Loaded case file "${file.name}" and extracted legal context.`);
       
-      // Pull similar cases based on primary case details
-      fetchSimilarCases(file.name);
+      // Pull similar cases using the extracted case text for better matches
+      fetchSimilarCases(extractedText || file.name);
     } catch (err: any) {
       console.error(err);
       setUploadStatus(`Error: ${err.message || err}`);
@@ -295,10 +298,11 @@ export const EntityExtractionUI: React.FC = () => {
     setChatLoading(true);
 
     try {
+      const contextText = documentText.length > 5000 ? `${documentText.slice(0, 5000)}\n\n[Truncated]` : documentText;
       const res = await fetch('http://127.0.0.1:8000/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: userQuery })
+        body: JSON.stringify({ query: userQuery, context: contextText })
       });
 
       if (!res.ok) {
@@ -354,7 +358,7 @@ export const EntityExtractionUI: React.FC = () => {
       if (match.start > currentIdx) {
         parts.push(documentText.substring(currentIdx, match.start));
       }
-      const styles = entityColors[match.entity.entity_type] || { bg: 'rgba(255,255,255,0.1)', border: 'border-white/10', text: 'text-white', badge: 'bg-white/10' };
+      const styles = entityColors[match.entity.entity_type] || { bg: 'rgba(255,255,255,0.1)', border: 'border-white/10', text: 'text-white', badge: 'bg-[#1C1C1F]/10' };
 
       parts.push(
         <span
@@ -363,7 +367,7 @@ export const EntityExtractionUI: React.FC = () => {
           className={`cursor-pointer inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold transition-all duration-200 border hover:scale-105 ${styles.bg} ${styles.border} ${styles.text} mx-0.5`}
         >
           {match.entity.entity_value}
-          <span className={`text-[9px] px-1 rounded-sm uppercase tracking-wider ${styles.badge}`}>
+          <span className={`text-xs px-1 rounded-sm uppercase tracking-wider ${styles.badge}`}>
             {match.entity.entity_type.replace('_', ' ')}
           </span>
         </span>
@@ -375,48 +379,60 @@ export const EntityExtractionUI: React.FC = () => {
       parts.push(documentText.substring(currentIdx));
     }
 
-    return <div className="whitespace-pre-wrap leading-relaxed text-gray-300 font-serif text-sm">{parts}</div>;
+    return <div className="whitespace-pre-wrap leading-relaxed text-slate-300 font-serif text-base">{parts}</div>;
   };
 
   return (
-    <div className="min-h-screen bg-[#0F172A] text-slate-100 p-4 md:p-8 font-sans">
+    <div className="min-h-screen bg-[#1C1C1F] text-slate-100 p-4 md:p-8 font-sans">
       {/* Header Banner */}
-      <div className="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-5">
+      <div className="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/5 pb-5">
         <div>
-          <span className="text-[10px] font-extrabold text-blue-500 uppercase tracking-widest bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">
-            Adalat AI • Indian Case Law Assistant
+          <span className="text-xs font-extrabold text-blue-500 uppercase tracking-widest bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">
+            AI legal Agent • Indian Case Law Assistant
           </span>
           <h1 className="text-2xl font-black tracking-tight text-white mt-1.5 flex items-center gap-2">
             AI Legal Assistant & Investigation Suite
           </h1>
-          <p className="text-slate-400 text-xs mt-1">
+          <p className="text-slate-500 text-xs mt-1">
             Conduct legal research, OCR case documents, query IPC guidelines, and map litigant networks.
           </p>
         </div>
 
         {/* Upload Control */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-          <label className="px-4 py-2 bg-slate-850 hover:bg-slate-800 border border-slate-700 rounded-lg cursor-pointer text-xs font-medium text-slate-300 text-center transition-colors">
-            Upload PDF / Image
+          <label className="flex-1 px-4 py-3 bg-slate-950/90 hover:bg-slate-900 border border-slate-700 rounded-3xl cursor-pointer text-xs font-semibold text-slate-100 text-center transition-all shadow-sm shadow-slate-900/20">
+            <div className="flex items-center justify-center gap-2">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/15 text-indigo-400">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                  <path fillRule="evenodd" d="M4 3.5A1.5 1.5 0 015.5 2h9A1.5 1.5 0 0116 3.5v13A1.5 1.5 0 0114.5 18h-9A1.5 1.5 0 014 16.5v-13zM10 6a.75.75 0 01.75.75v3.69l1.72-1.72a.75.75 0 111.06 1.06l-3 3a.75.75 0 01-1.06 0l-3-3a.75.75 0 111.06-1.06l1.72 1.72V6.75A.75.75 0 0110 6z" clipRule="evenodd" />
+                </svg>
+              </span>
+              <span>Upload Case File</span>
+            </div>
             <input type="file" onChange={handleFileUpload} accept=".pdf,.png,.jpg,.jpeg" className="hidden" />
           </label>
           <button
             onClick={triggerExtraction}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-xs font-semibold rounded-lg shadow-lg hover:shadow-blue-500/20 transition-all duration-200 border border-blue-400/20 text-white flex items-center justify-center gap-2"
+            className="px-4 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900/60 text-xs font-semibold rounded-3xl shadow-lg hover:shadow-blue-500/25 transition-all duration-200 border border-blue-400/20 text-white flex items-center justify-center gap-2"
           >
             {loading ? <span className="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full" /> : null}
             Re-Analyze Text
           </button>
         </div>
+        {uploadedFilename && (
+          <div className="mt-3 text-xs text-slate-500">
+            Current case file: <span className="text-slate-200 font-semibold">{uploadedFilename}</span>
+          </div>
+        )}
       </div>
 
       {/* Progress Log Console */}
       {uploadStatus && (
-        <div className="max-w-7xl mx-auto mb-6 p-2 px-4 bg-slate-900 border border-slate-800 rounded-lg flex justify-between items-center text-xs">
-          <span className="text-slate-400 flex items-center gap-2">
+        <div className="max-w-7xl mx-auto mb-6 p-2 px-4 bg-slate-900 border border-white/5 rounded-lg flex justify-between items-center text-xs">
+          <span className="text-slate-500 flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-ping" />
-            System status: <strong className="text-blue-400">{uploadStatus}</strong>
+            System status: <strong className="text-indigo-600">{uploadStatus}</strong>
           </span>
           <button onClick={() => setUploadStatus('')} className="text-slate-500 hover:text-slate-300">Dismiss</button>
         </div>
@@ -427,18 +443,18 @@ export const EntityExtractionUI: React.FC = () => {
         
         {/* LEFT COLUMN: UPLOAD / EDITING & CHATBOT */}
         <div className="lg:col-span-6 flex flex-col gap-6">
-          <div className="bg-[#1E293B]/80 backdrop-blur-md border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col min-h-[580px]">
+          <div className="glass-panel flex flex-col min-h-[580px]">
             {/* Tab Header */}
-            <div className="flex border-b border-slate-800 bg-[#1E293B]">
+            <div className="flex border-b border-white/5 bg-[#1C1C1F]">
               <button
                 onClick={() => setLeftTab('upload')}
-                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${leftTab === 'upload' ? 'border-blue-500 text-blue-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${leftTab === 'upload' ? 'border-blue-500 text-indigo-600 bg-[#1C1C1F]' : 'border-transparent text-slate-500 hover:text-slate-200'}`}
               >
                 Case File & Text Editor
               </button>
               <button
                 onClick={() => setLeftTab('chatbot')}
-                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${leftTab === 'chatbot' ? 'border-blue-500 text-blue-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${leftTab === 'chatbot' ? 'border-blue-500 text-indigo-600 bg-[#1C1C1F]' : 'border-transparent text-slate-500 hover:text-slate-200'}`}
               >
                 Legal Assistant Chat
               </button>
@@ -449,31 +465,31 @@ export const EntityExtractionUI: React.FC = () => {
               {leftTab === 'upload' ? (
                 <div className="flex flex-col gap-5 flex-1 justify-between">
                   <div className="flex-1 flex flex-col">
-                    <span className="text-[10px] text-slate-400 font-semibold mb-2 block uppercase tracking-wider">
+                    <span className="text-xs text-slate-500 font-semibold mb-2 block uppercase tracking-wider">
                       OCR Document Text Output
                     </span>
                     <textarea
                       value={documentText}
                       onChange={(e) => setDocumentText(e.target.value)}
-                      className="w-full flex-1 min-h-[300px] bg-[#0F172A] border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300 focus:outline-none focus:border-blue-500/50 resize-none transition-colors"
+                      className="w-full flex-1 min-h-[300px] bg-[#1C1C1F] border border-white/5 rounded-lg p-3 font-mono text-sm text-slate-300 focus:outline-none focus:border-blue-500/50 resize-none transition-colors"
                       placeholder="Paste legal case summary, police report or court filing text here..."
                     />
                   </div>
 
                   {/* FAISS Case Law Matches */}
-                  <div className="pt-4 border-t border-slate-800/80">
-                    <h4 className="text-xs font-bold text-slate-200 uppercase tracking-widest mb-3">
+                  <div className="pt-4 border-t border-white/5/80">
+                    <h4 className="text-sm font-bold text-slate-100 uppercase tracking-widest mb-3">
                       Similar Case Law Match (FAISS RAG)
                     </h4>
                     <div className="space-y-3">
                       {similarCases.map((c, idx) => (
-                        <div key={idx} className="p-3 bg-slate-900 border border-slate-800/85 rounded-lg hover:border-slate-700 transition-all">
+                        <div key={idx} className="p-3 bg-slate-900 border border-white/5/85 rounded-lg hover:border-slate-700 transition-all">
                           <div className="flex justify-between items-start gap-2 mb-1">
-                            <span className="text-xs font-extrabold text-blue-400">{c.title}</span>
-                            <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">{c.citation}</span>
+                            <span className="text-xs font-extrabold text-indigo-600">{c.title}</span>
+                            <span className="text-xs bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded font-mono">{c.citation}</span>
                           </div>
-                          <span className="text-[10px] text-slate-500 block mb-1">{c.court}</span>
-                          <p className="text-xs text-slate-400 leading-normal">{c.summary}</p>
+                          <span className="text-xs text-slate-500 block mb-1">{c.court}</span>
+                          <p className="text-xs text-slate-500 leading-normal">{c.summary}</p>
                         </div>
                       ))}
                     </div>
@@ -485,24 +501,24 @@ export const EntityExtractionUI: React.FC = () => {
                   <div className="flex-1 overflow-y-auto space-y-4 pr-1 mb-4 scrollbar-thin">
                     {chatMessages.map((msg, idx) => (
                       <div key={idx} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                        <div className={`p-3.5 rounded-lg text-xs max-w-[85%] leading-relaxed ${msg.sender === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none'}`}>
+                        <div className={`p-3.5 rounded-lg text-sm max-w-[85%] leading-relaxed ${msg.sender === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-slate-900 border border-white/5 text-slate-200 rounded-bl-none'}`}>
                           {msg.text}
 
                           {/* Render structured responses from backend models */}
                           {msg.structuredResponse && (
-                            <div className="mt-4 pt-3 border-t border-slate-800 space-y-3 text-slate-300">
+                            <div className="mt-4 pt-3 border-t border-white/5 space-y-3 text-slate-300">
                               <div>
-                                <span className="text-[9px] uppercase font-bold text-blue-400 block mb-0.5">EXPLANATION IN SIMPLE TERMS</span>
-                                <p className="text-[11px] leading-relaxed">{msg.structuredResponse.explanation}</p>
+                                <span className="text-xs uppercase font-bold text-indigo-600 block mb-0.5">EXPLANATION IN SIMPLE TERMS</span>
+                                <p className="text-sm leading-relaxed">{msg.structuredResponse.explanation}</p>
                               </div>
                               {msg.structuredResponse.ipc_sections && msg.structuredResponse.ipc_sections.length > 0 && (
                                 <div>
-                                  <span className="text-[9px] uppercase font-bold text-amber-400 block mb-1">APPLICABLE INDIAN STATUTES</span>
+                                  <span className="text-xs uppercase font-bold text-amber-400 block mb-1">APPLICABLE INDIAN STATUTES</span>
                                   <div className="space-y-1.5">
                                     {msg.structuredResponse.ipc_sections.map((ipc, sIdx) => (
-                                      <div key={sIdx} className="bg-slate-950 p-2 rounded border border-slate-800/80">
-                                        <span className="font-bold text-[10px] text-amber-300 block">{ipc.section}: {ipc.title}</span>
-                                        <p className="text-[10px] text-slate-400 mt-0.5">{ipc.description}</p>
+                                      <div key={sIdx} className="bg-slate-950 p-2 rounded border border-white/5/80">
+                                        <span className="font-bold text-xs text-amber-300 block">{ipc.section}: {ipc.title}</span>
+                                        <p className="text-xs text-slate-500 mt-0.5">{ipc.description}</p>
                                       </div>
                                     ))}
                                   </div>
@@ -510,8 +526,8 @@ export const EntityExtractionUI: React.FC = () => {
                               )}
                               {msg.structuredResponse.pro_tip && (
                                 <div className="bg-blue-500/10 p-2 rounded border border-blue-500/20">
-                                  <span className="text-[9px] uppercase font-bold text-blue-400 block">PRO TIP</span>
-                                  <p className="text-[10px] leading-relaxed text-slate-300 mt-0.5">{msg.structuredResponse.pro_tip}</p>
+                                  <span className="text-xs uppercase font-bold text-indigo-600 block">PRO TIP</span>
+                                  <p className="text-xs leading-relaxed text-slate-300 mt-0.5">{msg.structuredResponse.pro_tip}</p>
                                 </div>
                               )}
                             </div>
@@ -529,13 +545,13 @@ export const EntityExtractionUI: React.FC = () => {
 
                   {/* Preset prompt buttons */}
                   <div className="flex flex-wrap gap-1.5 mb-3">
-                    <button onClick={() => loadChatPrompt("What legal issues exist in this case?")} className="text-[10px] bg-slate-900 hover:bg-slate-850 border border-slate-800 px-2 py-1 rounded text-slate-400 hover:text-slate-200">
+                    <button onClick={() => loadChatPrompt("What legal issues exist in this case?")} className="text-xs bg-slate-900 hover:bg-slate-850 border border-white/5 px-2 py-1 rounded text-slate-500 hover:text-slate-200">
                       Case Analysis
                     </button>
-                    <button onClick={() => loadChatPrompt("Explain the penalties for Section 420 IPC.")} className="text-[10px] bg-slate-900 hover:bg-slate-850 border border-slate-800 px-2 py-1 rounded text-slate-400 hover:text-slate-200">
+                    <button onClick={() => loadChatPrompt("Explain the penalties for Section 420 IPC.")} className="text-xs bg-slate-900 hover:bg-slate-850 border border-white/5 px-2 py-1 rounded text-slate-500 hover:text-slate-200">
                       Explain Section 420
                     </button>
-                    <button onClick={() => loadChatPrompt("What are the next actions to challenge this FIR?")} className="text-[10px] bg-slate-900 hover:bg-slate-850 border border-slate-800 px-2 py-1 rounded text-slate-400 hover:text-slate-200">
+                    <button onClick={() => loadChatPrompt("What are the next actions to challenge this FIR?")} className="text-xs bg-slate-900 hover:bg-slate-850 border border-white/5 px-2 py-1 rounded text-slate-500 hover:text-slate-200">
                       FIR Actions
                     </button>
                   </div>
@@ -546,7 +562,7 @@ export const EntityExtractionUI: React.FC = () => {
                       type="text"
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
-                      className="flex-1 bg-[#0F172A] border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500/50"
+                      className="flex-1 bg-[#1C1C1F] border border-white/5 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-blue-500/50"
                       placeholder="Ask a legal query or question on case details..."
                     />
                     <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-semibold text-white">
@@ -561,24 +577,24 @@ export const EntityExtractionUI: React.FC = () => {
 
         {/* RIGHT COLUMN: VISUAL INTELLIGENCE & CHARTS */}
         <div className="lg:col-span-6 flex flex-col gap-6">
-          <div className="bg-[#1E293B]/80 backdrop-blur-md border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col min-h-[580px]">
+          <div className="glass-panel flex flex-col min-h-[580px]">
             {/* Tab Header */}
-            <div className="flex border-b border-slate-800 bg-[#1E293B]">
+            <div className="flex border-b border-white/5 bg-[#1C1C1F]">
               <button
                 onClick={() => setRightTab('entities')}
-                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${rightTab === 'entities' ? 'border-blue-500 text-blue-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${rightTab === 'entities' ? 'border-blue-500 text-indigo-600 bg-[#1C1C1F]' : 'border-transparent text-slate-500 hover:text-slate-200'}`}
               >
                 Entities & Timeline
               </button>
               <button
                 onClick={() => setRightTab('graph')}
-                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${rightTab === 'graph' ? 'border-blue-500 text-blue-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${rightTab === 'graph' ? 'border-blue-500 text-indigo-600 bg-[#1C1C1F]' : 'border-transparent text-slate-500 hover:text-slate-200'}`}
               >
                 Relational Graph
               </button>
               <button
                 onClick={() => setRightTab('intelligence')}
-                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${rightTab === 'intelligence' ? 'border-blue-500 text-blue-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${rightTab === 'intelligence' ? 'border-blue-500 text-indigo-600 bg-[#1C1C1F]' : 'border-transparent text-slate-500 hover:text-slate-200'}`}
               >
                 Investigation Intelligence
               </button>
@@ -592,17 +608,17 @@ export const EntityExtractionUI: React.FC = () => {
                 <div className="space-y-6">
                   {/* Highlighting Overlay */}
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-2">
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-2">
                       Semantic Overlay Markup
                     </span>
-                    <div className="p-4 bg-[#0F172A] rounded-lg border border-slate-800/80 min-h-[120px] max-h-[160px] overflow-y-auto scrollbar-thin">
+                    <div className="p-4 bg-[#1C1C1F] rounded-lg border border-white/5/80 min-h-[120px] max-h-[160px] overflow-y-auto scrollbar-thin">
                       {renderHighlightedText()}
                     </div>
                   </div>
 
                   {/* Grid Cards of Entities */}
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-2.5">
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-2.5">
                       Extracted Entity Categorization
                     </span>
                     <div className="grid grid-cols-2 gap-3">
@@ -614,16 +630,16 @@ export const EntityExtractionUI: React.FC = () => {
                         return (
                           <div
                             key={category}
-                            className={`p-2.5 rounded-lg border bg-[#0F172A] hover:bg-[#0F172A]/80 transition-all ${styles.border}`}
+                            className={`p-2.5 rounded-lg border bg-[#1C1C1F] hover:bg-[#1C1C1F]/80 transition-all ${styles.border}`}
                           >
-                            <span className="text-[9px] uppercase tracking-wider font-semibold text-slate-400 block mb-1.5">
+                            <span className="text-xs uppercase tracking-wider font-semibold text-slate-500 block mb-1.5">
                               {category.replace('_', ' ')}
                             </span>
                             <div className="flex flex-wrap gap-1">
                               {items.map((val, idx) => (
                                 <span
                                   key={idx}
-                                  className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${styles.badge}`}
+                                  className={`text-xs px-2 py-0.5 rounded font-medium ${styles.badge}`}
                                 >
                                   {val}
                                 </span>
@@ -638,14 +654,14 @@ export const EntityExtractionUI: React.FC = () => {
                   {/* Timeline Flow */}
                   {extractedData.timeline && extractedData.timeline.length > 0 && (
                     <div className="pt-2">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-3">
+                      <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-3">
                         Case History Timeline (Date Sequence)
                       </span>
-                      <div className="relative border-l border-slate-800 pl-4 ml-2 space-y-4">
+                      <div className="relative border-l border-white/5 pl-4 ml-2 space-y-4">
                         {extractedData.timeline.map((event, idx) => (
                           <div key={idx} className="relative">
-                            <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-blue-500 border-2 border-[#1E293B]" />
-                            <span className="text-xs font-bold text-blue-400 font-mono block">{event.date}</span>
+                            <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-blue-500 border-2 border-white" />
+                            <span className="text-xs font-bold text-indigo-600 font-mono block">{event.date}</span>
                             <p className="text-xs text-slate-300 mt-0.5 leading-normal">{event.event}</p>
                           </div>
                         ))}
@@ -658,11 +674,11 @@ export const EntityExtractionUI: React.FC = () => {
               {/* RELATIONAL KNOWLEDGE GRAPH */}
               {rightTab === 'graph' && (
                 <div className="flex flex-col items-stretch flex-1">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-2">
+                  <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-2">
                     Litigant Network Graph Visualizer
                   </span>
                   
-                  <div className="relative w-full bg-[#0F172A] rounded-lg border border-slate-800 overflow-hidden flex items-center justify-center min-h-[300px]">
+                  <div className="relative w-full bg-[#1C1C1F] rounded-lg border border-white/5 overflow-hidden flex items-center justify-center min-h-[300px]">
                     {graphNodes.length === 0 ? (
                       <div className="text-slate-500 text-xs">No graph relations detected. Please upload/run extraction.</div>
                     ) : (
@@ -693,7 +709,7 @@ export const EntityExtractionUI: React.FC = () => {
                               fontSize="8"
                               fontWeight="bold"
                               textAnchor="middle"
-                              className="bg-[#0F172A]"
+                              className="bg-[#1C1C1F]"
                             >
                               {link.type}
                             </text>
@@ -736,7 +752,7 @@ export const EntityExtractionUI: React.FC = () => {
                       </svg>
                     )}
                   </div>
-                  <span className="text-[10px] text-slate-500 mt-2 text-center">
+                  <span className="text-xs text-slate-500 mt-2 text-center">
                     Nodes represent case entities. Lines indicate extracted legal relationships. Click on any node to select it.
                   </span>
                 </div>
@@ -753,21 +769,21 @@ export const EntityExtractionUI: React.FC = () => {
                     <p className="text-xs text-slate-300 leading-normal">
                       The analyzer matches sections of the Indian Penal Code:
                     </p>
-                    <ul className="text-xs text-slate-400 space-y-1.5 list-disc list-inside mt-2">
+                    <ul className="text-xs text-slate-500 space-y-1.5 list-disc list-inside mt-2">
                       <li><strong className="text-amber-400">Section 406 IPC</strong>: Criminal Breach of Trust. Carries an imprisonment penalty of up to 3 years.</li>
                       <li><strong className="text-amber-400">Section 420 IPC</strong>: Cheating and dishonestly inducing delivery of property. Carries an imprisonment penalty of up to 7 years. Non-bailable offense.</li>
                     </ul>
                   </div>
 
                   {/* Recommendation card */}
-                  <div className="p-3.5 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                    <span className="text-blue-400 text-xs font-bold uppercase tracking-wide block mb-1">
+                  <div className="p-3.5 bg-indigo-500/10 border border-indigo-500/20 rounded-lg">
+                    <span className="text-indigo-600 text-xs font-bold uppercase tracking-wide block mb-1">
                       Actionable Roadmap
                     </span>
                     <ul className="text-xs text-slate-300 space-y-2 list-decimal list-inside mt-1.5">
-                      <li>File a Quashing Petition under <strong className="text-blue-300">Section 482 CrPC</strong> before the High Court if no prima facie case is made out.</li>
-                      <li>Secure anticipatory bail under <strong className="text-blue-300">Section 438 CrPC</strong> if arrest is apprehended under Section 420.</li>
-                      <li>Verify dispatch of the mandatory <strong className="text-blue-300">Section 41A CrPC</strong> notice of appearance by the investigating officer.</li>
+                      <li>File a Quashing Petition under <strong className="text-indigo-400">Section 482 CrPC</strong> before the High Court if no prima facie case is made out.</li>
+                      <li>Secure anticipatory bail under <strong className="text-indigo-400">Section 438 CrPC</strong> if arrest is apprehended under Section 420.</li>
+                      <li>Verify dispatch of the mandatory <strong className="text-indigo-400">Section 41A CrPC</strong> notice of appearance by the investigating officer.</li>
                     </ul>
                   </div>
 
@@ -783,18 +799,18 @@ export const EntityExtractionUI: React.FC = () => {
 
               {/* Selected Entity details panel */}
               {selectedEntity && (
-                <div className="mt-6 bg-[#0F172A] border border-blue-500/30 rounded-lg p-3">
+                <div className="mt-6 bg-[#1C1C1F] border border-blue-500/30 rounded-lg p-3">
                   <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Active Selector Details</span>
-                    <button onClick={() => setSelectedEntity(null)} className="text-[10px] text-slate-500 hover:text-slate-300">Close</button>
+                    <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest">Active Selector Details</span>
+                    <button onClick={() => setSelectedEntity(null)} className="text-xs text-slate-500 hover:text-slate-300">Close</button>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="text-[9px] text-slate-500 block">NAME</span>
+                      <span className="text-xs text-slate-500 block">NAME</span>
                       <strong className="text-white">{selectedEntity.entity_value}</strong>
                     </div>
                     <div>
-                      <span className="text-[9px] text-slate-500 block">CATEGORY</span>
+                      <span className="text-xs text-slate-500 block">CATEGORY</span>
                       <strong className="text-slate-300 uppercase">{selectedEntity.entity_type.replace('_', ' ')}</strong>
                     </div>
                   </div>

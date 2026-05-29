@@ -9,9 +9,10 @@ This version supports **RAG (Retrieval-Augmented Generation)** using LangChain a
 * **Language**: Python 3.10+
 * **Framework**: FastAPI
 * **RAG Framework**: LangChain
-* **AI Model**: Google Gemini 1.5 Flash (via new `google-genai` SDK)
-* **Embeddings**: OpenAI `text-embedding-3-small` (via `langchain-openai`)
+* **AI Model**: Google Gemini (via `google-genai`)
+* **Embeddings**: Gemini text embeddings (via `google-genai`)
 * **Vector DB**: FAISS (via `faiss-cpu`)
+* **Database**: MongoDB (via `pymongo`)
 * **Validation**: Pydantic (v2)
 
 ---
@@ -27,10 +28,11 @@ d:\PROJECT FILES\AI legal\
 │   ├── schemas/          # Data validation schemas (Request/Response)
 │   │   ├── __init__.py
 │   │   └── legal.py
-│   └── services/         # Integrations with external services (Gemini, RAG)
+│   └── services/         # Integrations with external services (Gemini, RAG, OCR)
 │       ├── __init__.py
-│       ├── gemini.py     # Gemini LLM Integration
-│       └── rag.py        # CSV Loader, Text Splitter, OpenAI Embeddings & FAISS
+│       ├── gemini_service.py   # Gemini LLM Integration
+│       ├── gemini_rotator.py   # Gemini API key rotation
+│       └── rag.py        # CSV Loader, Text Splitter, Gemini Embeddings & FAISS
 ├── .env                  # Environment configurations
 ├── requirements.txt      # List of dependencies
 ├── test_app.py           # Unit tests for endpoints and services
@@ -56,8 +58,10 @@ d:\PROJECT FILES\AI legal\
 3. **Configure Environment Variables**
    Open the `.env` file and replace the placeholders with your actual API keys. Ensure the `DATASET_PATH` points to the correct location of your `synthetic_indian_legal_dataset.csv` file:
    ```env
-   GEMINI_API_KEY=AIzaSy...
-   OPENAI_API_KEY=sk-proj-...
+   GEMINI_API_KEY=your_gemini_api_key_here
+   MISTRAL_API_KEY=your_mistral_api_key_here
+   MONGO_URI=mongodb://localhost:27017
+   MONGO_DB_NAME=ai_legal
    DATASET_PATH=C:\Users\Vicky\Downloads\synthetic_indian_legal_dataset.csv
    FAISS_INDEX_PATH=faiss_index
    PORT=8000
@@ -73,7 +77,7 @@ d:\PROJECT FILES\AI legal\
    ```bash
    curl -X POST http://127.0.0.1:8000/api/rag/build
    ```
-   *This loads the CSV file, splits the cases into text segments, creates OpenAI embeddings, and writes the `faiss_index` folder to disk.*
+   *This loads the CSV file, splits the cases into text segments, creates Gemini embeddings, and writes the `faiss_index` folder to disk.*
 
 5. **Run the Server**
    ```bash
@@ -102,7 +106,7 @@ Navigate to [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to access t
   ```
 
 ### 2. `POST /api/ask`
-* **Description**: Analyze a legal question. If the FAISS index is built and `OPENAI_API_KEY` is configured, it will retrieve matching case laws, construct a context block, and supply it to Gemini 1.5 Flash.
+* **Description**: Analyze a legal question. If the FAISS index is built and `GEMINI_API_KEY` is configured, it will retrieve matching case laws, construct a context block, and supply it to Gemini.
 * **Request Payload**:
   ```json
   {

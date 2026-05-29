@@ -1,4 +1,4 @@
-from app.services.gemini import GeminiService
+from app.services.gemini_service import GeminiService
 from app.services.rag import RAGService
 from app.services.ocr import OCRService
 
